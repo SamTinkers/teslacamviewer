@@ -13,12 +13,14 @@ RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /
     sed -i '/buster-updates/d; /security.debian.org/d' /etc/apt/sources.list && \
     echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99-no-check-valid-until
 
-# install NodeJS 14.x (16+ requires newer libstdc++ than buster ships;
-# 14 is the highest the buster image can run, sufficient for Angular 8 build)
-RUN apt-get update -yq
-RUN apt-get install curl gnupg ca-certificates -yq
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
-RUN apt-get install -y nodejs build-essential
+# install NodeJS 14.x from official tarball (16+ requires newer libstdc++
+# than buster ships; 14 is sufficient for the Angular 8 frontend).
+# Skipping nodesource's setup script because they rotated GPG keys post-2023
+# and the old buster integration is no longer signed.
+RUN apt-get update -yq && apt-get install -y curl ca-certificates xz-utils build-essential
+RUN curl -fsSL https://nodejs.org/dist/v14.21.3/node-v14.21.3-linux-x64.tar.xz \
+    | tar -xJ -C /usr/local --strip-components=1
+RUN node --version && npm --version
 
 # Copy csproj and restore as distinct layers
 COPY . .
