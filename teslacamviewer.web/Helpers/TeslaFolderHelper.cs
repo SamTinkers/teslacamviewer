@@ -38,7 +38,25 @@ namespace teslacamviewer.web.Helpers
         }
 
         public static SideEnum TeslaClipSideParser(string fullPath) {
-            return Enum.Parse<SideEnum>(fullPath.Split("-").ToList().Last().Split(".").First().Split("_").First(), true);
+            // Tesla clips are named like:
+            //   2026-05-08_10-36-22-front.mp4
+            //   2026-05-08_10-36-22-left_repeater.mp4
+            //   2026-05-08_10-36-22-right_pillar.mp4
+            // Original parser took the suffix-after-last-dash and dropped everything
+            // after the first underscore — silently mangling left_repeater -> "repeater"
+            // (which doesn't match SideEnum) and so on for HW4 cars.
+            // We instead match the known camera-name suffix explicitly.
+            var fileName = System.IO.Path.GetFileNameWithoutExtension(fullPath);
+            var match = System.Text.RegularExpressions.Regex.Match(
+                fileName,
+                @"-(front|back|left_repeater|right_repeater|left_pillar|right_pillar|left|right)$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!match.Success) {
+                throw new ArgumentException($"Cannot parse Tesla camera side from filename: {fileName}");
+            }
+            // "left_repeater" -> "leftrepeater" -> SideEnum.LeftRepeater (case-insensitive)
+            var raw = match.Groups[1].Value.Replace("_", "");
+            return Enum.Parse<SideEnum>(raw, true);
         }
 
         internal static bool ContainsTeslaEvent(string directory)

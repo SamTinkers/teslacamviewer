@@ -2,5 +2,9 @@ export enum SideEnum {
     Front,
     Back,
     Left,
-    Right
+    Right,
+    LeftRepeater,
+    RightRepeater,
+    LeftPillar,
+    RightPillar
 }

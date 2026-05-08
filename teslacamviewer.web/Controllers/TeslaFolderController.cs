@@ -45,17 +45,24 @@ namespace teslacamviewer.web.Controllers
 
         [HttpGet, Route("{folderType}/{folderName}/{fileName}")]
         public IActionResult GetTeslaClip(string folderType, string folderName, string fileName) {
-            return PhysicalFile(Path.Combine(_config["rootFolder"], folderType, folderName, fileName), "application/octet-stream", fileName, enableRangeProcessing: true); // returns a FileStreamResult
+            // Pick MIME by extension. Chrome refuses to render application/octet-stream
+            // in <video> elements; Firefox is more permissive about extension-vs-MIME.
+            // Tesla clips are .mp4 (H.264/AAC). thumb.png lives next to them.
+            var mime = fileName.EndsWith(".mp4", System.StringComparison.OrdinalIgnoreCase) ? "video/mp4"
+                     : fileName.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase) ? "image/png"
+                     : fileName.EndsWith(".json", System.StringComparison.OrdinalIgnoreCase) ? "application/json"
+                     : "application/octet-stream";
+            return PhysicalFile(Path.Combine(_config["rootFolder"], folderType, folderName, fileName), mime, fileName, enableRangeProcessing: true);
         }
 
         [HttpGet, Route("get/thumbnail/{folderType}/{folderName}")]
         public async Task<IActionResult> GetThumbnail(string folderType, string folderName) {
             var stream = await _teslaFolderRepository.GetThumbnail(folderName, folderType);
-            
+
             if (stream == null)
                 return NotFound();
 
-            return File(stream, "application/octet-stream", "thumb.png");
+            return File(stream, "image/png", "thumb.png");
         }
 
         [Authorize]

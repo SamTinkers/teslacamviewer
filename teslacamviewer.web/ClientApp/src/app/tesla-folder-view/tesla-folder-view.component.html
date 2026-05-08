@@ -52,7 +52,7 @@
                 </div>
             </div>
             <div class="row mt-2">
-                <div *ngFor="let tc of teslaClipsGrouped.teslaClips" [class.col-3]="!isFullscreen(teslaClipsGrouped) " [class.col-6]="isFullscreen(teslaClipsGrouped)">
+                <div *ngFor="let tc of teslaClipsGrouped.teslaClips" [class.col-md-4]="!isFullscreen(teslaClipsGrouped)" [class.col-lg-2]="!isFullscreen(teslaClipsGrouped)" [class.col-6]="isFullscreen(teslaClipsGrouped)">
                     <vg-player>
                         <video [attr.id]="getMediaId(tc.dateTime, tc.side)" style="width: 100%;" [vgMedia]="media" #media preload="auto" controls>
                             <source [src]="'/api/teslafolder/' +teslaFolder.folderType+ '/' + teslaFolder.name + '/' + tc.name" type="video/mp4">
