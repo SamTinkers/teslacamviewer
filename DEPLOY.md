@@ -1,32 +1,28 @@
 # Deploy on mini-speedy
 
-This fork builds to `ghcr.io/samtinkers/teslacamviewer:develop` (and a `:sha-XXXXXXX` tag per commit). Both .NET 5 SDK and runtime base images still pull cleanly from MCR; build pins Debian buster sources to `archive.debian.org` and installs Node 14 from the official tarball (nodesource's old buster integration is no longer GPG-signed post-2023).
+Source-build deployment — mini-speedy clones this fork and builds the image locally. No registry, no auth, no PAT. GitHub holds the source as a remote backup; CI verifies the Dockerfile still builds on every push but doesn't publish anything.
 
-## 1. GHCR access (one-time)
+## One-time setup
 
-The fork is **private** so the container package on GHCR is also private by default. Two options:
+```bash
+ssh mini-speedy
+sudo mkdir -p /docker/composers/teslacamviewer
+sudo chown mini-docker:mini-docker /docker/composers/teslacamviewer
+cd /docker/composers/teslacamviewer
+git clone https://github.com/SamTinkers/teslacamviewer.git src
+```
 
-**Option A — make the package public** (simpler, recommended; image bytes are not sensitive):
+(Repo is private, so the clone needs an authenticated git method — either an SSH key on mini-speedy with read access, or a PAT-embedded HTTPS URL. mini-speedy already has SSH access to other private repos per `feedback_mini_speedy_deploy_key.md`.)
 
-1. https://github.com/users/SamTinkers/packages/container/teslacamviewer/settings
-2. Danger Zone → "Change visibility" → Public
-
-**Option B — keep private, authenticate mini-speedy to GHCR** (PAT required):
-
-1. Create a PAT with `read:packages` scope at https://github.com/settings/tokens/new
-2. On mini-speedy:
-   ```bash
-   echo "$GHCR_PAT" | docker login ghcr.io -u SamTinkers --password-stdin
-   ```
-
-## 2. Compose service
-
-Create `/docker/composers/teslacamviewer/compose.yml` on mini-speedy (matches the layout in `project_mini_speedy_inventory.md`):
+Then create `/docker/composers/teslacamviewer/compose.yml`:
 
 ```yaml
 services:
   teslacamviewer:
-    image: ghcr.io/samtinkers/teslacamviewer:develop
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    image: teslacamviewer:local
     container_name: teslacamviewer
     restart: unless-stopped
     ports:
@@ -38,9 +34,7 @@ services:
       - TZ=Australia/Sydney
       - PUID=1001
       - PGID=1001
-      - authorizationEnabled=true   # require login on the web UI
-      # If authorizationEnabled=true, the container will prompt to set
-      # admin credentials on first browse to /
+      - authorizationEnabled=true
     user: "1001:1001"
 
 volumes:
@@ -48,41 +42,60 @@ volumes:
 ```
 
 Notes:
-- Mounted **read-only** so the viewer can't accidentally delete your archive.
+- `/data/teslacam` mounted **read-only** — viewer can't accidentally delete archive.
 - `user: 1001:1001` matches the rest of the mini-speedy stack (per `feedback_uid_1001_default.md`).
-- Authorization is enabled by default — the web UI will prompt for admin user/pass on first visit. If you want it open on local LAN only, set `authorizationEnabled=false`.
+- `authorizationEnabled=true` prompts to create an admin user/pass on first browse. Set to `false` if you want it open on local LAN only.
+- Build takes ~2 min the first time (Angular 8 npm install dominates), then is cached for subsequent rebuilds.
 
-## 3. Bring it up
+## Bring it up
 
 ```bash
-ssh mini-speedy
 cd /docker/composers/teslacamviewer
-docker compose pull
+docker compose build
 docker compose up -d
-docker compose logs -f teslacamviewer    # watch first boot
+docker compose logs -f teslacamviewer
 ```
 
-Browse `http://mini-speedy:7544` from the LAN. On first load, you'll be prompted to create the admin user (if `authorizationEnabled=true`).
+Browse `http://mini-speedy:7544` from the LAN. First load prompts to create the admin user (if auth enabled).
 
-## 4. Optional: Cloudflare Tunnel route
+## Updating after I push patches
+
+```bash
+cd /docker/composers/teslacamviewer/src
+git pull
+cd ..
+docker compose build
+docker compose up -d
+```
+
+The `git pull` fetches the new code from GitHub; `docker compose build` rebuilds with cache (only changed layers re-execute); `up -d` restarts with the new image.
+
+## Optional: Cloudflare Tunnel route
 
 To expose at `viewer.kernot.au` (per `project_kernot_tunnel.md`):
 
-1. Cloudflare Tunnel → Public Hostname → add `viewer.kernot.au` → service `http://mini-speedy:7544`.
-2. CF Access policy → restrict to your Google IdP or Sam-only allowlist.
+1. Cloudflare Tunnel → Public Hostname → `viewer.kernot.au` → service `http://mini-speedy:7544`
+2. CF Access policy → restrict to your Google IdP or Sam-only allowlist
 
-## 5. What to verify after deploy
+## What to verify after deploy
 
-- All 6 cameras render in the grid (front, back, left/right repeater, left/right pillar) when you click into a SavedClip event.
-- Videos play in Chrome and Edge (previously broken — was MIME `application/octet-stream`).
-- Range-request scrubbing works (drag the video timeline) — depends on the existing `enableRangeProcessing: true` on `PhysicalFile`.
+- All 6 cameras render in the grid (front, back, left/right repeater, left/right pillar) when you click into a SavedClip event
+- Videos play in Chrome and Edge (previously broken — was MIME `application/octet-stream`)
+- Range-request scrubbing works (drag the video timeline)
 
-## 6. If a future teslausb update or reflash creates new clips that don't appear
+## Rollback
 
-Cause: the parser's regex is the source of truth for camera-side detection. If Tesla adds a new camera angle (rare but firmware updates have done it before), the regex in `teslacamviewer.web/Helpers/TeslaFolderHelper.cs` and the SideEnum need new entries. Pull the fork, edit, push — CI rebuilds and republishes.
+```bash
+cd /docker/composers/teslacamviewer
+docker compose down
+docker rmi teslacamviewer:local
+# Edit src/ or revert to a known-good commit:
+cd src && git checkout <prior-sha>
+cd .. && docker compose build && docker compose up -d
+```
 
-## 7. Future maintenance debt (eyes-open)
+## Maintenance debt (eyes-open)
 
-- `.NET 5` is EOL since May 2022. `mcr.microsoft.com/dotnet/sdk:5.0` still works as of 2026-05-08 but Microsoft could remove it any time. If/when that happens, the fork will need a real .NET 8 + Angular (8 → 17+) bump — a multi-day refactor, not a copy-paste-vibe-job.
-- Node 14 is also EOL. Same caveat — currently builds fine, but its tarball URL is on nodejs.org which keeps old releases available indefinitely, so this is less time-sensitive.
-- If the fork stops building, the runtime container that's already on mini-speedy keeps working — it just can't be rebuilt.
+- `.NET 5` is EOL since May 2022. `mcr.microsoft.com/dotnet/sdk:5.0` still pulls cleanly as of 2026-05-08 but Microsoft could remove it any time. If/when that happens, the fork needs a real `.NET 8` + Angular (8 → 17+) bump — multi-day refactor, not a copy-paste-vibe-job.
+- Node 14 is also EOL. Same caveat — currently builds fine, but its tarball URL is on nodejs.org which keeps old releases available indefinitely.
+- If the source ever stops building on mini-speedy, the *running* container keeps working — Docker doesn't tear down a container just because its source can't be rebuilt. Plenty of warning before anything breaks.

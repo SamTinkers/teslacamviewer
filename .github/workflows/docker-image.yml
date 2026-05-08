@@ -1,4 +1,10 @@
-name: Create and publish a Docker image
+name: Build Docker image (verify only)
+
+# Builds the Docker image on every push to verify the Dockerfile + .NET + Angular
+# build still works. Does NOT push to any registry — actual deployment is a
+# source-build on mini-speedy (see DEPLOY.md). Keeping CI lets us catch rot
+# (Debian archive issues, Node tarball moves, etc.) before they bite a real
+# rebuild on the host.
 
 on:
   push:
@@ -6,39 +12,20 @@ on:
       - '**'
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  build-and-push-image:
+  build-image:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
+      - name: Build Docker image (no push)
+        uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: false
           file: Dockerfile
+          tags: teslacamviewer:ci
