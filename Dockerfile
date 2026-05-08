@@ -9,8 +9,8 @@ ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
 # Repoint apt at archive.debian.org and disable Valid-Until checks (signatures
 # remain verified). Without this, apt-get update returns 404 on every Release
 # file and any apt install in this stage fails.
-RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g; s|http://security.debian.org|http://archive.debian.org/debian-security|g' /etc/apt/sources.list && \
-    sed -i '/buster-updates/d' /etc/apt/sources.list && \
+RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list && \
+    sed -i '/buster-updates/d; /security.debian.org/d' /etc/apt/sources.list && \
     echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99-no-check-valid-until
 
 # install NodeJS 14.x (16+ requires newer libstdc++ than buster ships;
@@ -30,8 +30,8 @@ RUN dotnet publish "/app/teslacamviewer.web/teslacamviewer.web.csproj" -c Releas
 
 # Build runtime image (also buster-based — same archive fix)
 FROM mcr.microsoft.com/dotnet/aspnet:5.0
-RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g; s|http://security.debian.org|http://archive.debian.org/debian-security|g' /etc/apt/sources.list && \
-    sed -i '/buster-updates/d' /etc/apt/sources.list && \
+RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list && \
+    sed -i '/buster-updates/d; /security.debian.org/d' /etc/apt/sources.list && \
     echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99-no-check-valid-until
 RUN mkdir /teslacamdata
 WORKDIR /app
