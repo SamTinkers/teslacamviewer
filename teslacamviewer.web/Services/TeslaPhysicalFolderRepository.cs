@@ -98,9 +98,16 @@ namespace teslacamviewer.web.Services
         }
 
         private IEnumerable<PhysicalTeslaClip> BuildTeslaClips(string directory) {
+            // Match only per-camera clips named like:
+            //   2026-05-08_10-36-22-front.mp4
+            //   2026-05-08_10-36-22-left_repeater.mp4
+            // The original regex allowed any *.mp4 in the dir, which let Tesla's
+            // combined "event.mp4" through and crashed the date parser
+            // (event.mp4.Split("_") has no second element → IndexOutOfRangeException).
+            var clipPattern = @"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-(front|back|left_repeater|right_repeater|left_pillar|right_pillar|left|right)\.mp4$";
             var files = _fileSystem.Directory
             .GetFiles(directory)
-            .Where(c => Regex.Match(c, @"([a-zA-Z0-9\s_\\.\-\(\):])+(mp4)$").Success)
+            .Where(c => Regex.Match(c, clipPattern, RegexOptions.IgnoreCase).Success)
             .ToList();
 
             return files.Select(f => 
