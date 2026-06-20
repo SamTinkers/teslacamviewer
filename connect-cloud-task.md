@@ -141,3 +141,29 @@ systemd timer (preferred — clean journald logs, easy enable/disable) running
   helpers, docs.
 - **Sam (on mini-speedy):** install per `INSTALL.md`, set up push-back auth,
   enable the timer, choose which mutating tasks (if any) are turned on.
+
+## How to kick off the build (next session)
+
+The cloud session can scaffold the **entire repo side** once the four open
+decisions above are answered. To start, just reply with answers to:
+
+1. Read-only tasks only for v1, or include `restart`/`update`?
+2. systemd timer (recommended) or cron?
+3. Signed-commit verification now, or later?
+4. Poll interval (default 60s)?
+
+Then the cloud session writes `server-agent/agent.sh`, `tasks/*.sh`,
+`allowlist`, the systemd units, the `server-channel` branch conventions, and
+`INSTALL.md`.
+
+## The one piece the cloud session cannot do
+
+The agent needs a **push-back credential** on mini-speedy so it can commit
+results to the `server-channel` branch — a **deploy key** (SSH, write-scoped to
+this repo) or a **fine-scoped PAT**. This is set up by Sam on the server and
+**never** stored in the repo. mini-speedy already has SSH access to private
+repos (per `DEPLOY.md` / `feedback_mini_speedy_deploy_key.md`), so a write-
+enabled deploy key is the natural choice.
+
+Everything else — the cloud session can't reach mini-speedy directly, so the
+install + auth steps are run by Sam from `INSTALL.md`.
